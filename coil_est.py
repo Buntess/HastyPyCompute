@@ -51,6 +51,67 @@ def coil_compress(kdata, axis=0, target_channels=None):
 
     return kdata
 
+def gauss_filter(i_size, g_param):
+	vec = cp.absolute(cp.linspace(0, i_size - 1, i_size) - (i_size - 1)/2)
+	return cp.exp(-vec/(g_param/2))
+
+async def low_res_sensemap_gauss(coord, kdata, weights, im_size, gauss_param=(32, 32, 32)):
+
+	dim = len(im_size)
+	ncoil = kdata.shape[0]
+
+	normfactor = 1.0 / math.sqrt(math.prod(im_size))
+
+	coil_images = cp.zeros((ncoil,) + im_size, dtype=kdata.dtype)
+	coil_images_filtered = cp.empty_like(coil_images)
+	coordcu = cp.array(coord)
+	weightscu = cp.array(weights)
+
+	t1 = gauss_filter(im_size[0], gauss_param[0])
+	t2 = gauss_filter(im_size[1], gauss_param[1])
+	t3 = gauss_filter(im_size[2], gauss_param[2])
+	window_prod = cp.meshgrid(t1, t2, t3)
+	window = (window_prod[0] * window_prod[1] * window_prod[2]).reshape(im_size)
+	del window_prod, t1, t2, t3
+	gc.collect()
+
+	if dim == 3:
+
+		for i in range(ncoil):
+			kdatacu = cp.array(kdata[i,...]) * weightscu
+			ci = coil_images[i,...]
+
+			kdatacu *= normfactor
+
+			cufinufft.nufft3d1(x=coordcu[0,:], y=coordcu[1,:], z=coordcu[2,:], data=kdatacu,
+				n_modes=coil_images.shape[1:], out=ci, eps=1e-5)
+			
+			cif = coil_images_filtered[i,...]
+			cif[:]	= cp.fft.fftshift(cp.fft.fftn(cp.fft.ifftshift(ci)))
+			cif[:] *= window
+			cif[:] = cp.fft.fftshift(cp.fft.ifftn(cp.fft.ifftshift(cif)))
+
+		del window
+
+		coil_images_filtered = coil_images_filtered.get()
+		coil_images = coil_images.get()
+
+		gc.collect()
+
+		sos = np.sqrt(np.sum(np.square(np.abs(coil_images_filtered)), axis=0))
+		sos += np.max(sos)*1e-5
+
+		smaps = coil_images_filtered / sos
+		del coil_images_filtered
+		image = np.sum(np.conj(smaps) * coil_images, axis=0) / np.sum(np.conj(smaps)*smaps, axis=0)
+
+		cp.get_default_memory_pool().free_all_blocks()
+
+		return smaps, image[None,...]
+	else:
+		raise RuntimeError('Not Implemented Dimension')
+
+
 async def low_res_sensemap(coord, kdata, weights, im_size, tukey_param=(0.95, 0.95, 0.95), exponent=3):
 
 	dim = len(im_size)

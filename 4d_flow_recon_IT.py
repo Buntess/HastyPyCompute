@@ -121,7 +121,7 @@ async def get_smaps(lx=0.5, ls=0.002, im_size=(320,320,320), load_from_zero = Fa
 
 	devicectxdict = {"dev": cp.cuda.Device(0), "ntransf": 2, "imsize": imsize, "typehint": "full"}
 
-	do_isense = True
+	do_isense = False
 	if do_isense:
 		smaps, image, alpha_i, resids = await coil_est.isense(image, smaps, 
 			cp.array(dataset['coords'][0]), 
@@ -147,7 +147,7 @@ async def get_smaps(lx=0.5, ls=0.002, im_size=(320,320,320), load_from_zero = Fa
 
 	#proxx = prox.svtprox()
 
-	await solvers.fista(np, image, alpha_i, gradx, proxx, 50)
+	await solvers.fista(np, image, alpha_i, gradx, proxx, 20)
 
 	# filename = base_path + 'reconed_iSENSE_1.h5'
 	# print('Save')
@@ -288,7 +288,7 @@ async def test_svt(smapsPath, nframes=10):
 
 if __name__ == "__main__":
 	imsize = (320,320,320)
-	usePipeMenon = False
+	usePipeMenon = True
 
 	# for i in range(100):
 	# 	lambda_x = round(10**(random.uniform(0, -4)), 5)
@@ -296,7 +296,7 @@ if __name__ == "__main__":
 
 	lambda_x = 0.02
 	lambda_s = 5*1e-6
-	#asyncio.run(get_smaps(lambda_x, lambda_s, imsize, False, pipeMenon=usePipeMenon, wexponent=0.6))
+	asyncio.run(get_smaps(lambda_x, lambda_s, imsize, False, pipeMenon=usePipeMenon, wexponent=0.6))
 
 	wexponent = [0.6, 1]
 	lambda_n = [1e-2, 1e-3, 1e-4]
