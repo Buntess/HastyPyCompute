@@ -88,7 +88,7 @@ async def load_flow_data(file, num_encodes=5, load_coords=True, load_kdata=True,
     return ret
 
 
-async def gate_time(dataset, num_encodes=5):
+async def gate_time_old(dataset, num_encodes=5):
     time_gating = dataset['gating']['TIME_E0']
     
     loop = asyncio.get_event_loop()
@@ -112,6 +112,39 @@ async def gate_time(dataset, num_encodes=5):
 
     for fut in futures:
         await fut
+
+    return dataset
+
+
+async def gate_time(dataset, frames, num_encodes=5):
+    ecg_gating = dataset['gating']['TIME_E0']
+    upper_bound = 2 * np.median(ecg_gating)
+
+    step = upper_bound / frames
+
+    weights = [[] for i in range(num_encodes*frames)]
+    kdatas = [[] for i in range(num_encodes*frames)]
+    coords = [[] for i in range(num_encodes*frames)]
+
+    def do_gating(enc, idxs):
+        weights[enc] = (dataset['weights'][enc % num_encodes][idxs,:])
+        kdatas[enc] = (dataset['kdatas'][enc % num_encodes][:,idxs,:])
+        coords[enc] = (dataset['coords'][enc % num_encodes][:,idxs,:])
+
+    loop = asyncio.get_event_loop()
+    executor = concurrent.futures.ThreadPoolExecutor(max_workers=num_encodes)
+
+    for f in range(frames):
+        idxs = (ecg_gating > f*step) & (ecg_gating < (f*step + step))
+        futures = []
+        for enc in range(num_encodes):
+            futures.append(loop.run_in_executor(executor, do_gating, f*num_encodes + enc, idxs))
+        for fut in futures:
+            await fut
+
+    dataset['weights'] = weights
+    dataset['kdatas'] = kdatas
+    dataset['coords'] = coords
 
     return dataset
 

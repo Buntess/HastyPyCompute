@@ -184,7 +184,7 @@ async def run_framed(niter, nframes, smapsPath, load_from_zero=True, imsize = (3
 		print(f"Compress Time={end - start} s")
 		
 		start = time.time()
-		dataset = await load_data.gate_ecg(dataset, nframes)
+		dataset = await load_data.gate_time(dataset, nframes)
 		end = time.time()
 		print(f"Gate Time={end - start} s")
 
@@ -298,5 +298,5 @@ if __name__ == "__main__":
 
 				sPath = base_path + 'reconed_iSENSE_2.h5' #'/media/buntess/OtherSwifty/Data/COBRA191/reconed_lowres.h5'
 
-				asyncio.run(run_framed(niter=100, nframes=20, smapsPath=sPath, load_from_zero=False if i != 1 else True, imsize=imsize, pipeMenon=usePipeMenon, wexponent=wexp, lambda_n=l))
+				asyncio.run(run_framed(niter=100, nframes=8, smapsPath=sPath, load_from_zero=False if i != 1 else True, imsize=imsize, pipeMenon=usePipeMenon, wexponent=wexp, lambda_n=l))
 				i += 1
