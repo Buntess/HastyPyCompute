@@ -35,12 +35,12 @@ async def get_smaps(lx=0.5, ls=0.002, im_size=(320,320,320), load_from_zero = Fa
 		print(f"Load Time={end - start} s")
 		
 		start = time.time()
-		dataset = await load_data.gate_time(dataset)
+		dataset = await load_data.gate_ecg(dataset, 1)
 		end = time.time()
 		print(f"Gate Time={end - start} s")
 
 		start = time.time()
-		dataset['kdatas'] = coil_est.coil_compress(dataset['kdatas'], 0, 18)
+		#dataset['kdatas'] = coil_est.coil_compress(dataset['kdatas'], 0, 18)
 		end = time.time()
 		print(f"Compress Time={end - start} s")
 
@@ -93,17 +93,17 @@ async def get_smaps(lx=0.5, ls=0.002, im_size=(320,320,320), load_from_zero = Fa
 		# coil_images, ref_c = coil_est.create_coil_images([dataset['coords'][0]], [dataset['kdatas'][0]], [dataset['weights'][0]], im_size)
 		# smaps = coil_est.walsh_cpu(coil_images, ref_c, np.array((8, 8, 8)))
 		# smaps = coil_est.sos_normalize(smaps)
-		# _, image = await coil_est.low_res_sensemap_gauss(dataset['coords'][0], dataset['kdatas'][0], dataset['weights'][0], imsize,
-		# 								gauss_param=(32, 32, 32))
-
-		# filename = base_path + 'reconed_walsh.h5'
-		# print('Save')
-		# with h5py.File(filename, 'w') as f:
-		# 	f.create_dataset('image', data=image)
-		# 	f.create_dataset('smaps', data=smaps)
-
 		smaps, image = await coil_est.low_res_sensemap_gauss(dataset['coords'][0], dataset['kdatas'][0], dataset['weights'][0], imsize,
 		 								gauss_param=(32, 32, 32))
+
+		filename = base_path + 'reconed_walsh.h5'
+		print('Save')
+		with h5py.File(filename, 'w') as f:
+			f.create_dataset('image', data=image)
+			f.create_dataset('smaps', data=smaps)
+
+		# smaps, image = await coil_est.low_res_sensemap_gauss(dataset['coords'][0], dataset['kdatas'][0], dataset['weights'][0], imsize,
+		#  								gauss_param=(32, 32, 32))
 
 
 
@@ -112,6 +112,7 @@ async def get_smaps(lx=0.5, ls=0.002, im_size=(320,320,320), load_from_zero = Fa
 		for i in range(len(dataset['weights'])):
 			print(f'Pipe Menon Frame {i}')
 			w = dcf.pipe_menon_dcf(dataset['coords'][i]/np.pi*imsize[0]/2, imsize)
+			cp.get_default_memory_pool().free_all_blocks()
 			dataset['weights'][i] = (w / w.max()) ** wexponent
 		
 	else:
@@ -119,7 +120,7 @@ async def get_smaps(lx=0.5, ls=0.002, im_size=(320,320,320), load_from_zero = Fa
 
 	#devicectx = grad.DeviceCtx(cp.cuda.Device(0), 2, imsize, "full")
 
-	devicectxdict = {"dev": cp.cuda.Device(0), "ntransf": 2, "imsize": imsize, "typehint": "full"}
+	devicectxdict = {"dev": cp.cuda.Device(0), "ntransf": 1, "imsize": imsize, "typehint": "full"}
 
 	do_isense = False
 	if do_isense:
@@ -178,12 +179,12 @@ async def run_framed(niter, nframes, smapsPath, load_from_zero=True, imsize = (3
 		print(f"Load Time={end - start} s")
 
 		start = time.time()
-		dataset['kdatas'] = coil_est.coil_compress(dataset['kdatas'], 0, 18)
+		#dataset['kdatas'] = coil_est.coil_compress(dataset['kdatas'], 0, 18)
 		end = time.time()
 		print(f"Compress Time={end - start} s")
 		
 		start = time.time()
-		dataset = await load_data.gate_time(dataset, nframes)
+		dataset = await load_data.gate_ecg(dataset, nframes)
 		end = time.time()
 		print(f"Gate Time={end - start} s")
 
@@ -224,6 +225,7 @@ async def run_framed(niter, nframes, smapsPath, load_from_zero=True, imsize = (3
 		for i in range(len(dataset['weights'])):
 			print(f'Pipe Menon Frame {i}')
 			w = dcf.pipe_menon_dcf(dataset['coords'][i]/np.pi*imsize[0]/2, imsize)
+			cp.get_default_memory_pool().free_all_blocks()
 			dataset['weights'][i] = (w / w.max()) ** wexponent
 		
 	else:
@@ -231,7 +233,7 @@ async def run_framed(niter, nframes, smapsPath, load_from_zero=True, imsize = (3
 
 
 	#devicectx = grad.DeviceCtx(cp.cuda.Device(0), 2, imsize, "full")
-	devicectxdict = {"dev": cp.cuda.Device(0), "ntransf": 3, "imsize": imsize, "typehint": "full"}
+	devicectxdict = {"dev": cp.cuda.Device(0), "ntransf": 1, "imsize": imsize, "typehint": "none"}
 	
 	image = np.tile(image, (nframes, 1, 1, 1))
 
@@ -267,27 +269,9 @@ async def run_framed(niter, nframes, smapsPath, load_from_zero=True, imsize = (3
 	del image, smaps, dataset
 
 
-async def test_svt(smapsPath, nframes=10):
-	# Load smaps and full image
-	smaps, image = load_data.load_smaps_image(smapsPath)
-
-	#dataset['weights'] = [np.sqrt(w) for w in dataset['weights']]
-
-
-	devicectx = grad.DeviceCtx(cp.cuda.Device(0), 2, imsize, "full")
-	image = np.repeat(image, nframes, axis=0)
-
-	proxx = prox.svtprox(base_alpha=1e-5, blk_shape=np.array([16, 16, 16]), blk_strides=np.array([16, 16, 16]), block_iter=2)
-
-	import plot_utility as pu
-	image_c = image.copy()
-	await proxx(image_c, 1e-9, image_c.copy())
-
-	print('Hej')
-
 
 if __name__ == "__main__":
-	imsize = (320,320,320)
+	imsize = (256,256,256)
 	usePipeMenon = True
 
 	# for i in range(100):
@@ -296,7 +280,7 @@ if __name__ == "__main__":
 
 	lambda_x = 0.02
 	lambda_s = 5*1e-6
-	asyncio.run(get_smaps(lambda_x, lambda_s, imsize, False, pipeMenon=usePipeMenon, wexponent=0.6))
+	#asyncio.run(get_smaps(lambda_x, lambda_s, imsize, True, pipeMenon=usePipeMenon, wexponent=0.6))
 
 	wexponent = [0.6, 1]
 	lambda_n = [1e-2, 1e-3, 1e-4]
@@ -314,5 +298,5 @@ if __name__ == "__main__":
 
 				sPath = base_path + 'reconed_iSENSE_2.h5' #'/media/buntess/OtherSwifty/Data/COBRA191/reconed_lowres.h5'
 
-				asyncio.run(run_framed(niter=100, nframes=4, smapsPath=sPath, load_from_zero=False if i != 1 else False, imsize=imsize, pipeMenon=usePipeMenon, wexponent=wexp, lambda_n=l))
+				asyncio.run(run_framed(niter=100, nframes=20, smapsPath=sPath, load_from_zero=False if i != 1 else True, imsize=imsize, pipeMenon=usePipeMenon, wexponent=wexp, lambda_n=l))
 				i += 1

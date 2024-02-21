@@ -23,8 +23,8 @@ import grad
 
 import prox
 
-#base_path = '/media/buntess/OtherSwifty/Data/Garpen/Ena/'
-base_path = '/home/turbotage/Documents/4DRecon/'
+base_path = '/media/buntess/OtherSwifty/Data/Garpen/Ena/'
+#base_path = '/home/turbotage/Documents/4DRecon/'
 
 async def get_smaps(lx=0.5, ls=0.0002, im_size=(320,320,320), load_from_zero = False, pipeMenon = False, wexponent=0.75):
 
@@ -150,6 +150,7 @@ async def get_smaps(lx=0.5, ls=0.0002, im_size=(320,320,320), load_from_zero = F
 		f.create_dataset('smaps', data=smaps)
 
 	del image, smaps, dataset
+	gc.collect()
 
 
 async def run_framed(niter, nframes, smapsPath, load_from_zero=True, imsize = (320,320,320), pipeMenon = False, wexponent=0.75, lambda_n=1e-3):
@@ -249,6 +250,7 @@ async def run_framed(niter, nframes, smapsPath, load_from_zero=True, imsize = (3
 		#f.create_dataset('image', data=image)
 
 	del image, smaps, dataset
+	gc.collect()
 
 
 async def test_svt(smapsPath, nframes=10):

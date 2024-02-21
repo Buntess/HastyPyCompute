@@ -183,7 +183,11 @@ async def device_gradient_step_x(smaps, images, coords, kdatas, weights, alpha, 
 
 				imagemem = locals * image_frame
 
+				cp.cuda.get_current_stream().synchronize()
+
 				devicectx.forward_execute(imagemem, out=kdatamem)
+
+				cp.cuda.get_current_stream().synchronize()
 
 				if kdatas is not None:
 					kdatamem = weights_and_kdata_func(kdatamem, kdata_frame, weights_frame)
@@ -192,7 +196,12 @@ async def device_gradient_step_x(smaps, images, coords, kdatas, weights, alpha, 
 				else:
 					kdatamem *= weights_frame
 
+
+				cp.cuda.get_current_stream().synchronize()
+
 				devicectx.backward_execute(kdatamem, out=imagemem)
+
+				cp.cuda.get_current_stream().synchronize()
 
 				if alpha is None:
 					if hasattr(images, 'device'):

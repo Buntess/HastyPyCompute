@@ -222,10 +222,11 @@ def block_fetcher_3d_numba(coil_images, xrange, yrange, zrange, blk_size):
 
 	large_block = np.empty((nblock,ncoil,nenc*np.prod(blk_size)), dtype=coil_images.dtype)
 
-	blockcount = 0
+
 	for nx in nb.prange(xrange[0], xrange[1]):
 		for ny in range(yrange[0], yrange[1]):
 			for nz in range(zrange[0], zrange[1]):
+				blockcount = nz + ny*(zrange[1] - zrange[0]) + nx*(yrange[1] - yrange[0])*(zrange[1] - zrange[0])
 				
 				idx = [nx, ny, nz]
 
@@ -254,7 +255,6 @@ def block_fetcher_3d_numba(coil_images, xrange, yrange, zrange, blk_size):
 									large_block[blockcount,c,count] = coil_images[e,c,x,y,z]
 									count += 1
 
-				blockcount += 1
 
 	return large_block
 
@@ -262,10 +262,11 @@ def block_fetcher_3d_numba(coil_images, xrange, yrange, zrange, blk_size):
 
 @nb.jit(nopython=True, cache=True, parallel=True, nogil=True)
 def block_pusher_3d_numba(coil_images_out, U, S, xrange, yrange, zrange, refc):
-	blockcount = 0
+	
 	for nx in nb.prange(xrange[0], xrange[1]):
 		for ny in range(yrange[0], yrange[1]):
 			for nz in range(zrange[0], zrange[1]):
+				blockcount = nz + ny*(zrange[1] - zrange[0]) + nx*(yrange[1] - yrange[0])*(zrange[1] - zrange[0])
 				
 				idx = [nx, ny, nz]
 
@@ -278,7 +279,6 @@ def block_pusher_3d_numba(coil_images_out, U, S, xrange, yrange, zrange, refc):
 					temp = np.sqrt(slocal[0]*ulocal[c,0]*ufactor)
 					coil_images_out[c, idx[0], idx[1], idx[2]] = temp
 
-				blockcount += 1
     
 
 def create_coil_images(coord, kdata, weights, im_size):
@@ -388,8 +388,8 @@ def walsh_cpu(coil_images, refc, blk_size):
 				start = [0,0,0]
 				end = [0,0,0]
 				for i in range(3):
-					startl = idx[i] - blk_size[i] // 2
-					endl = idx[i] + blk_size[i] // 2
+					startl = idx[i] - blk_size[i] / 2
+					endl = idx[i] + blk_size[i] / 2
 
 					if startl < 0:
 						startl = 0
@@ -419,3 +419,13 @@ def walsh_cpu(coil_images, refc, blk_size):
 					coil_images_out[c, idx[0], idx[1], idx[2]] = temp #local_block[0,0]
 
 	return coil_images_out
+
+def sos_normalize(smaps):
+	sos = np.sqrt(np.sum(np.abs(smaps)**2, 0))
+	sos = 1. / sos
+	norm_coils = np.zeros_like(smaps)
+
+	for c in range(norm_coils.shape[0]):
+		norm_coils[c, ...] = np.multiply(smaps[c, ...], sos)
+
+	return norm_coils
