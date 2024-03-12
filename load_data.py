@@ -118,7 +118,7 @@ async def gate_time_old(dataset, num_encodes=5):
 
 async def gate_time(dataset, frames, num_encodes=5):
     ecg_gating = dataset['gating']['TIME_E0']
-    upper_bound = 2 * np.median(ecg_gating)
+    upper_bound = np.max(ecg_gating)
 
     step = upper_bound / frames
 
@@ -211,6 +211,30 @@ def load_smaps_image(filename):
         smaps = f['smaps'][()]
 
         return smaps, image
+    
+def load_coil_mat(filename):
+    with h5py.File(filename, 'r') as f:
+        U = f['coil_comp'][()]
+
+        return U
+
+
+def load_orchestra_smaps(path, nCoils, target_channels, imSize, U = None):
+    f = h5py.File(path, 'r')
+    smaps = np.empty((nCoils,) + imSize).view(np.complex64)
+
+    for i in range(nCoils):
+
+
+        current_Smap = np.array(f['Maps'][f'SenseMaps_{i}'])
+        smaps[i, ...] = current_Smap['real'] + 1j*current_Smap['imag']
+        
+    smaps = np.swapaxes(smaps, 1, 3)
+
+    if U is not None:
+        smaps = np.squeeze(np.tensordot(U, smaps, axes=([1, 0])))
+
+    return smaps[:target_channels, ...]
 
 
 async def crop_kspace(dataset, im_size, crop_factors=(1.0,1.0,1.0), prefovkmuls=(1.0,1.0,1.0), postfovkmuls=(1.0,1.0,1.0)):
@@ -289,11 +313,13 @@ async def crop_kspace(dataset, im_size, crop_factors=(1.0,1.0,1.0), prefovkmuls=
     
 
 
-async def translate(coord_vec, kdata_vec, translation):
+async def translate(dataset, translation):
+    
+    coord_vec, kdata_vec = dataset['coords'], dataset['kdatas']
 
     cp.fuse(kernel_func='translace_func')
     def translate_func(k, m, c):
-        k *= cp.exp(1j * cp.sum(m, c, axis=1))
+        k *= cp.exp(1j * cp.sum(m*c, axis=0))
 
     mem_stream = cp.cuda.Stream(non_blocking=True)
 
@@ -312,8 +338,8 @@ async def translate(coord_vec, kdata_vec, translation):
 
         kdata_vec[i] = kdata.get(mem_stream)
 
-
-    return kdata_vec
+        dataset['kdatas'] = kdata_vec
+    return dataset
 
 
 async def flatten(dataset, num_encodes=5):

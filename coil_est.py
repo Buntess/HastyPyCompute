@@ -49,7 +49,25 @@ def coil_compress(kdata, axis=0, target_channels=None):
         kdata[e] = np.squeeze(np.matmul(U, kdata[e]))
         kdata[e] = np.reshape(kdata[e], (ncoils, nspokes, pnperspoke))[:target_channels, ...]
 
+    return kdata, U
+
+
+def coil_compress_framed(kdata, U, target_channels):
+    ncoils = kdata[0].shape[0]
+    nspokes = kdata[0].shape[1]
+    pnperspoke = kdata[0].shape[2]
+
+    for e in range(len(kdata)):
+        kdata[e] = np.ascontiguousarray(kdata[e]).reshape((ncoils, nspokes * pnperspoke))
+    
+
+
+    for e in range(len(kdata)):
+        kdata[e] = np.squeeze(np.matmul(U, kdata[e]))
+        kdata[e] = np.reshape(kdata[e], (ncoils, nspokes, pnperspoke))[:target_channels, ...]
+
     return kdata
+
 
 def gauss_filter(i_size, g_param):
 	vec = cp.absolute(cp.linspace(0, i_size - 1, i_size) - (i_size - 1)/2)
@@ -133,6 +151,7 @@ async def low_res_sensemap(coord, kdata, weights, im_size, tukey_param=(0.95, 0.
 	gc.collect()
 	window **= exponent
 
+	cp.get_default_memory_pool().free_all_blocks
 	if dim == 3:
 
 		for i in range(ncoil):

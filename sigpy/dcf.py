@@ -50,7 +50,7 @@ def pipe_menon_dcf(
 
 	G = intlinops.Gridding(img_shape, coord, param=beta, width=width)
 	
-	scale = cp.mean(G.H * G * w)
+	scale = 1. #cp.mean(G.H * G * w)
 
 	print("Pipe Menon DCF:\n")
 	for it in range(max_iter):

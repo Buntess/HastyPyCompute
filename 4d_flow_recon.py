@@ -23,10 +23,10 @@ import grad
 
 import prox
 
-base_path = '/media/buntess/OtherSwifty/Data/Garpen/Ena/'
+base_path = '/media/buntess/OtherSwifty/Data/4D2D/'
 #base_path = '/home/turbotage/Documents/4DRecon/'
 
-async def get_smaps(lx=0.5, ls=0.0002, im_size=(320,320,320), load_from_zero = False, pipeMenon = False, wexponent=0.75):
+async def get_smaps(lx=0.5, ls=0.0002, im_size=(320,320,320), load_from_zero = False, pipeMenon = False, wexponent=0.75, translate = False, target_coils = 20):
 
 	if load_from_zero:
 		start = time.time()
@@ -35,12 +35,12 @@ async def get_smaps(lx=0.5, ls=0.0002, im_size=(320,320,320), load_from_zero = F
 		print(f"Load Time={end - start} s")
 		
 		start = time.time()
-		dataset = await load_data.gate_time(dataset)
+		dataset = await load_data.gate_ecg(dataset, 1)
 		end = time.time()
 		print(f"Gate Time={end - start} s")
 
 		start = time.time()
-		dataset['kdatas'] = coil_est.coil_compress(dataset['kdatas'], 0, 32)
+		dataset['kdatas'], U = coil_est.coil_compress(dataset['kdatas'], 0, target_coils)
 		end = time.time()
 		print(f"Compress Time={end - start} s")
 
@@ -50,9 +50,16 @@ async def get_smaps(lx=0.5, ls=0.0002, im_size=(320,320,320), load_from_zero = F
 		print(f"Flatten Time={end - start} s")
 
 		start = time.time()
-		dataset = await load_data.crop_kspace(dataset, imsize)
+		dataset = await load_data.crop_kspace(dataset, im_size)
 		end = time.time()
 		print(f"Crop Time={end - start} s")
+
+		if translate:
+			start = time.time()
+			dataset = await load_data.translate(dataset, (-2*320/10, 0, 0))
+			end = time.time()
+			print(f"Translate Time={end - start} s")
+
 
 		maxval = max(np.max(np.abs(kd)) for kd in dataset['kdatas'])
 		for kd in dataset['kdatas']:
@@ -89,21 +96,20 @@ async def get_smaps(lx=0.5, ls=0.0002, im_size=(320,320,320), load_from_zero = F
 	dataset['weights'] = [(w / w.max()) for w in dataset['weights']]
 	
 
-	smaps, image = await coil_est.low_res_sensemap(dataset['coords'][0], dataset['kdatas'][0], dataset['weights'][0], imsize,
+	smaps, image = await coil_est.low_res_sensemap(dataset['coords'][0], dataset['kdatas'][0], dataset['weights'][0], im_size,
 									  tukey_param=(0.95, 0.95, 0.95), exponent=3)
 
 	if pipeMenon:
 		for i in range(len(dataset['weights'])):
 			print(f'Pipe Menon Frame {i}')
-			w = dcf.pipe_menon_dcf(dataset['coords'][i]/np.pi*imsize[0]/2, imsize)
+			w = dcf.pipe_menon_dcf(dataset['coords'][i]/np.pi*im_size[0]/2, im_size)
 			dataset['weights'][i] = (w / w.max()) ** wexponent
 		
 	else:
 		dataset['weights'] = [(w / w.max())**wexponent for w in dataset['weights']]
 
-	#devicectx = grad.DeviceCtx(cp.cuda.Device(0), 2, imsize, "full")
 
-	devicectxdict = {"dev": cp.cuda.Device(0), "ntransf": 2, "imsize": imsize, "typehint": "full"}
+	devicectxdict = {"dev": cp.cuda.Device(0), "ntransf": 1, "imsize": im_size, "typehint": "full"}
 
 	do_isense = False
 	if do_isense:
@@ -123,37 +129,19 @@ async def get_smaps(lx=0.5, ls=0.0002, im_size=(320,320,320), load_from_zero = F
 
 	image = np.repeat(image, 5, axis=0)
 
-	async def gradx(ximg, a):
-		await grad.gradient_step_x(smaps, ximg, dataset['coords'], dataset['kdatas'], dataset['weights'],
-				a, [devicectxdict], calcnorm=False)
-		
-	proxx = prox.dctprox(lx)
 
-	#proxx = prox.svtprox()
-
-	await solvers.fista(np, image, alpha_i, gradx, proxx, 15)
-
-	filename = base_path + 'reconed_iSENSE_1.h5'
+	filename = base_path + 'reconed_lowres_1.h5'
 	print('Save')
 	with h5py.File(filename, 'w') as f:
 		f.create_dataset('image', data=image)
 		f.create_dataset('smaps', data=smaps)
+		f.create_dataset('coil_comp', data=U)
 	# del ....
 	cp.get_default_memory_pool().free_all_blocks()
 
-	await solvers.fista(np, image, alpha_i, gradx, proxx, 15)
-	#filename = f'/media/buntess/OtherSwifty/Data/COBRA191/reconed_lx{lx:.5f}_ls{ls:.7f}_res{resids[-1]}.h5'
-	filename = base_path + 'reconed_iSENSE_2.h5'
-	print('Save')
-	with h5py.File(filename, 'w') as f:
-		f.create_dataset('image', data=image)
-		f.create_dataset('smaps', data=smaps)
-
-	del image, smaps, dataset
-	gc.collect()
 
 
-async def run_framed(niter, nframes, smapsPath, load_from_zero=True, imsize = (320,320,320), pipeMenon = False, wexponent=0.75, lambda_n=1e-3):
+async def run_framed(niter, nframes, smapsPath, load_from_zero=True, imsize = (320,320,320), pipeMenon = False, wexponent=0.75, lambda_n=1e-3, translate = False, target_coils = 20):
 	
 
 	if load_from_zero:
@@ -163,7 +151,8 @@ async def run_framed(niter, nframes, smapsPath, load_from_zero=True, imsize = (3
 		print(f"Load Time={end - start} s")
 
 		start = time.time()
-		dataset['kdatas'] = coil_est.coil_compress(dataset['kdatas'], 0, 32)
+		U_cc = load_data.load_coil_mat(smapsPath)
+		dataset['kdatas'] = coil_est.coil_compress_framed(dataset['kdatas'], U_cc, target_coils)
 		end = time.time()
 		print(f"Compress Time={end - start} s")
 		
@@ -182,6 +171,13 @@ async def run_framed(niter, nframes, smapsPath, load_from_zero=True, imsize = (3
 		end = time.time()
 		print(f"Crop Time={end - start} s")
 
+		if translate:
+			start = time.time()
+			dataset = await load_data.translate(dataset, (-2*320/10, 0, 0))
+			end = time.time()
+			print(f"Translate Time={end - start} s")
+
+
 		maxval = max(np.max(np.abs(kd)) for kd in dataset['kdatas'])
 		for kd in dataset['kdatas']:
 			kd[:] /= maxval
@@ -199,11 +195,13 @@ async def run_framed(niter, nframes, smapsPath, load_from_zero=True, imsize = (3
 		dataset = load_data.load_processed_dataset(base_path + 'dataset_framed.h5')
 		end = time.time()
 		print(f"Load Dataset Time={end - start} s")
+		U_cc = load_data.load_coil_mat(smapsPath)
 
 
 
 	# Load smaps and full image
 	smaps, image = load_data.load_smaps_image(smapsPath)
+	smaps = load_data.load_orchestra_smaps('/media/buntess/OtherSwifty/Data/4D2D/SenseMaps.h5', 32, target_coils, imsize, U_cc)
 
 	if pipeMenon:
 		for i in range(len(dataset['weights'])):
@@ -216,9 +214,10 @@ async def run_framed(niter, nframes, smapsPath, load_from_zero=True, imsize = (3
 
 
 	#devicectx = grad.DeviceCtx(cp.cuda.Device(0), 2, imsize, "full")
-	devicectxdict = {"dev": cp.cuda.Device(0), "ntransf": 2, "imsize": imsize, "typehint": "full"}
+	devicectxdict = {"dev": cp.cuda.Device(0), "ntransf": 1, "imsize": imsize, "typehint": "framed"}
 	
-	image = np.repeat(image, nframes, axis=0)
+	#image = np.repeat(image, nframes, axis=0)
+	image = np.tile(image, (nframes, 1, 1, 1))
 
 	async def inormal(imgnew):
 		return await grad.gradient_step_x(smaps, imgnew, [dataset['coords'][0]], None, [dataset['weights'][0]], None, [devicectxdict])
@@ -232,57 +231,35 @@ async def run_framed(niter, nframes, smapsPath, load_from_zero=True, imsize = (3
 		print(f'Error = {np.array([a.item() for a in normlist[0]]).sum()}')
 		
 
-	proxx = prox.svtprox(base_alpha=lambda_n, blk_shape=np.array([8, 8, 8]), blk_strides=np.array([8, 8, 8]), block_iter=2)
+	proxx = prox.svtprox(base_alpha=lambda_n, blk_shape=np.array([16, 16, 16]), blk_strides=np.array([16, 16, 16]), block_iter=4)
 
 
 
 	filename = base_path + f'reconed_framed{nframes}_wexp{wexponent:.2f}_{lambda_n:.6f}_'
-	await solvers.fista(np, image, alpha_i, gradx, proxx, 100, saveImage=True, fileName=filename)
+	await solvers.fista(np, image, alpha_i, gradx, proxx, niter, saveImage=True, fileName=filename)
 	cp.get_default_memory_pool().free_all_blocks()
 
 	
-	# del ....
-	#cp.get_default_memory_pool().free_all_blocks()
-
-	#filename = f'/media/buntess/OtherSwifty/Data/Garpen/Ena/reconed_framed{nframes}.h5'
-	#print('Save')
-	#with h5py.File(filename, 'w') as f:
-		#f.create_dataset('image', data=image)
 
 	del image, smaps, dataset
 	gc.collect()
 
 
-async def test_svt(smapsPath, nframes=10):
-	# Load smaps and full image
-	smaps, image = load_data.load_smaps_image(smapsPath)
-
-	#dataset['weights'] = [np.sqrt(w) for w in dataset['weights']]
-
-
-	devicectx = grad.DeviceCtx(cp.cuda.Device(0), 2, imsize, "full")
-	image = np.repeat(image, nframes, axis=0)
-
-	proxx = prox.svtprox(base_alpha=1e-5, blk_shape=np.array([16, 16, 16]), blk_strides=np.array([16, 16, 16]), block_iter=2)
-
-	import plot_utility as pu
-	image_c = image.copy()
-	await proxx(image_c, 1e-9, image_c.copy())
-
-	print('Hej')
 
 
 if __name__ == "__main__":
-	imsize = (256,256,256)
-	usePipeMenon = True
+	imsize = (320,320,320)
+	usePipeMenon = False
+	do_trans = False
+	target_coils = 20
 
 	lambda_x = 0.05 #round(10**(random.uniform(0, -4)), 5)
 	lambda_s = round(10**(random.uniform(-2, -6)), 7)
 
-	#asyncio.run(get_smaps(lambda_x, lambda_s, imsize, True, pipeMenon=usePipeMenon, wexponent=0.5))
+	asyncio.run(get_smaps(lambda_x, lambda_s, imsize, True, pipeMenon=usePipeMenon, wexponent=0.75, translate=do_trans, target_coils=target_coils))
 
-	wexponent = [0.6, 1]
-	lambda_n = [1e-4, 1e-2, 1e-6]
+	wexponent = [0.75]
+	lambda_n = [1e-2, 1e-4, 1e-3, 1e-5, 1e-1, 1e-6]
 
 	i = 1
 	for wexp in wexponent:
@@ -293,7 +270,8 @@ if __name__ == "__main__":
 			
 			cp.get_default_memory_pool().free_all_blocks()
 
-			sPath = base_path + 'reconed_iSENSE_2.h5' #'/media/buntess/OtherSwifty/Data/COBRA191/reconed_lowres.h5'
+			sPath = base_path + 'reconed_lowres_1.h5' 
 
-			asyncio.run(run_framed(niter=100, nframes=20, smapsPath=sPath, load_from_zero=False if i != 1 else True, imsize=imsize, pipeMenon=usePipeMenon, wexponent=wexp, lambda_n=l))
+			asyncio.run(run_framed(niter=50, nframes=20, smapsPath=sPath, load_from_zero=False if i != 1 else True, imsize=imsize, pipeMenon=usePipeMenon, 
+						  wexponent=wexp, lambda_n=l,  translate=do_trans, target_coils = target_coils))
 			i += 1

@@ -17,7 +17,7 @@ class HastyOrthoSlicer:
 			self._phase = np.angle(data)
 			self._phase_clim = np.array([-3.141592, 3.141592]) #[self._phase.min(), self._phase.max()]
 			self._abs = np.abs(data)
-			self._abs_clim = np.percentile(self._abs, (1.0, 99.0))
+			self._abs_clim = np.percentile(self._abs, (0.0, 100))
 		data = self._abs if self._is_complex_dtype else data
 
 		"""

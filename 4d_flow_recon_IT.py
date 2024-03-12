@@ -23,10 +23,11 @@ import grad
 
 import prox
 
-base_path = '/media/buntess/OtherSwifty/Data/ITGADO/gait3/'
+#base_path = '/media/buntess/OtherSwifty/Data/ITGADO/gait9/'
+base_path = '/media/buntess/OtherSwifty/Data/PET-MR/Wahlin_Test/'
 #base_path = '/home/turbotage/Documents/4DRecon/'
 
-async def get_smaps(lx=0.5, ls=0.002, im_size=(320,320,320), load_from_zero = False, pipeMenon = False, wexponent=0.75):
+async def get_smaps(lx=0.5, ls=0.002, imsize=(320,320,320), load_from_zero = False, pipeMenon = False, wexponent=0.75):
 
 	if load_from_zero:
 		start = time.time()
@@ -35,12 +36,12 @@ async def get_smaps(lx=0.5, ls=0.002, im_size=(320,320,320), load_from_zero = Fa
 		print(f"Load Time={end - start} s")
 		
 		start = time.time()
-		dataset = await load_data.gate_ecg(dataset, 1)
+		dataset = await load_data.gate_time(dataset, 1)
 		end = time.time()
 		print(f"Gate Time={end - start} s")
 
 		start = time.time()
-		#dataset['kdatas'] = coil_est.coil_compress(dataset['kdatas'], 0, 18)
+		dataset['kdatas'] = coil_est.coil_compress(dataset['kdatas'], 0, 18)
 		end = time.time()
 		print(f"Compress Time={end - start} s")
 
@@ -54,7 +55,7 @@ async def get_smaps(lx=0.5, ls=0.002, im_size=(320,320,320), load_from_zero = Fa
 		end = time.time()
 		print(f"Crop Time={end - start} s")
 
-		maxval = max(np.max(np.abs(kd)) for kd in dataset['kdatas'])
+		maxval = max(np.max(np.quantile(np.absolute(kd), 0.9)) for kd in dataset['kdatas'])
 		for kd in dataset['kdatas']:
 			kd[:] /= maxval
 
@@ -93,6 +94,8 @@ async def get_smaps(lx=0.5, ls=0.002, im_size=(320,320,320), load_from_zero = Fa
 		# coil_images, ref_c = coil_est.create_coil_images([dataset['coords'][0]], [dataset['kdatas'][0]], [dataset['weights'][0]], im_size)
 		# smaps = coil_est.walsh_cpu(coil_images, ref_c, np.array((8, 8, 8)))
 		# smaps = coil_est.sos_normalize(smaps)
+
+
 		smaps, image = await coil_est.low_res_sensemap_gauss(dataset['coords'][0], dataset['kdatas'][0], dataset['weights'][0], imsize,
 		 								gauss_param=(32, 32, 32))
 
@@ -169,7 +172,7 @@ async def get_smaps(lx=0.5, ls=0.002, im_size=(320,320,320), load_from_zero = Fa
 	del image, smaps, dataset
 
 
-async def run_framed(niter, nframes, smapsPath, load_from_zero=True, imsize = (320,320,320), pipeMenon = False, wexponent=0.75, lambda_n=1e-3):
+async def run_framed(niter, nframes, smapsPath, load_from_zero=True, imsize = (320,320,320), pipeMenon = False, wexponent=0.75, lambda_n=1e-3, block_s = 8):
 	
 
 	if load_from_zero:
@@ -198,9 +201,11 @@ async def run_framed(niter, nframes, smapsPath, load_from_zero=True, imsize = (3
 		end = time.time()
 		print(f"Crop Time={end - start} s")
 
-		maxval = max(np.max(np.abs(kd)) for kd in dataset['kdatas'])
+		#maxval = max(np.max(np.abs(kd)) for kd in dataset['kdatas'])
+		maxval = max(np.max(np.quantile(np.absolute(kd), 0.9)) for kd in dataset['kdatas'])
 		for kd in dataset['kdatas']:
 			kd[:] /= maxval
+
 
 		maxval = max(np.max(np.abs(wd)) for wd in dataset['weights'])
 		for wd in dataset['weights']:
@@ -220,6 +225,7 @@ async def run_framed(niter, nframes, smapsPath, load_from_zero=True, imsize = (3
 
 	# Load smaps and full image
 	smaps, image = load_data.load_smaps_image(smapsPath)
+	smaps = load_data.load_orchestra_smaps(path = '/media/buntess/OtherSwifty/Data/PET-MR/Wahlin_Test/SenseMaps_Orchestra.h5')
 
 	if pipeMenon:
 		for i in range(len(dataset['weights'])):
@@ -233,9 +239,10 @@ async def run_framed(niter, nframes, smapsPath, load_from_zero=True, imsize = (3
 
 
 	#devicectx = grad.DeviceCtx(cp.cuda.Device(0), 2, imsize, "full")
-	devicectxdict = {"dev": cp.cuda.Device(0), "ntransf": 1, "imsize": imsize, "typehint": "none"}
+	devicectxdict = {"dev": cp.cuda.Device(0), "ntransf": 1, "imsize": imsize, "typehint": "framed"}
 	
 	image = np.tile(image, (nframes, 1, 1, 1))
+	# image = np.zeros_like(image)
 
 	async def inormal(imgnew):
 		return await grad.gradient_step_x(smaps, imgnew, [dataset['coords'][0]], None, [dataset['weights'][0]], None, [devicectxdict])
@@ -249,13 +256,13 @@ async def run_framed(niter, nframes, smapsPath, load_from_zero=True, imsize = (3
 		print(f'Error = {np.array([a.item() for a in normlist[0]]).sum()}')
 		
 
-	proxx = prox.svtprox(base_alpha=lambda_n, blk_shape=np.array([8, 8, 8]), blk_strides=np.array([8, 8, 8]), block_iter=2)
+	proxx = prox.svtprox(base_alpha=lambda_n, blk_shape=np.array([block_s, block_s, block_s]), blk_strides=np.array([block_s, block_s, block_s]), block_iter=4)
 
 
 
-	filename = base_path + f'long_run/reconed_framed{nframes}_wexp{wexponent:.2f}_{lambda_n:.6f}_'
+	filename = base_path + f'long_run/reconed_framed{nframes}_block{block_s}_wexp{wexponent:.2f}_{lambda_n:.6f}_steps_'
 	await solvers.fista(np, image, alpha_i, gradx, proxx, niter, saveImage=True, fileName=filename)
-	cp.get_default_memory_pool().free_all_blocks()
+	
 
 	
 	# del ....
@@ -267,12 +274,14 @@ async def run_framed(niter, nframes, smapsPath, load_from_zero=True, imsize = (3
 		#f.create_dataset('image', data=image)
 
 	del image, smaps, dataset
+	cp.get_default_memory_pool().free_all_blocks()
+	gc.collect()
 
 
 
 if __name__ == "__main__":
 	imsize = (256,256,256)
-	usePipeMenon = True
+	usePipeMenon = False
 
 	# for i in range(100):
 	# 	lambda_x = round(10**(random.uniform(0, -4)), 5)
@@ -282,21 +291,24 @@ if __name__ == "__main__":
 	lambda_s = 5*1e-6
 	#asyncio.run(get_smaps(lambda_x, lambda_s, imsize, True, pipeMenon=usePipeMenon, wexponent=0.6))
 
-	wexponent = [0.6, 1]
-	lambda_n = [1e-2, 1e-3, 1e-4]
+	wexponent = [0.6, 0.3]
+	lambda_n = [5, 1, 10]
+	block_s = [8]
 
 	i = 1
 	for wexp in wexponent:
 		
 		for l in lambda_n:
 
-			if i>0:
-		
-				print(f'Iteration number: {i}')
-				
-				cp.get_default_memory_pool().free_all_blocks()
+			for b in block_s:
 
-				sPath = base_path + 'reconed_iSENSE_2.h5' #'/media/buntess/OtherSwifty/Data/COBRA191/reconed_lowres.h5'
+				if i>0:
+			
+					print(f'Iteration number: {i}')
+					
+					cp.get_default_memory_pool().free_all_blocks()
 
-				asyncio.run(run_framed(niter=100, nframes=8, smapsPath=sPath, load_from_zero=False if i != 1 else True, imsize=imsize, pipeMenon=usePipeMenon, wexponent=wexp, lambda_n=l))
-				i += 1
+					sPath = base_path + 'reconed_iSENSE_2.h5' #'/media/buntess/OtherSwifty/Data/COBRA191/reconed_lowres.h5'
+
+					asyncio.run(run_framed(niter=100, nframes=10, smapsPath=sPath, load_from_zero=False if i != 1 else True, imsize=imsize, pipeMenon=usePipeMenon, wexponent=wexp, lambda_n=l, block_s = b))
+					i += 1
