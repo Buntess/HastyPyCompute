@@ -24,6 +24,7 @@ import grad
 import prox
 
 base_path = '/media/buntess/OtherSwifty/Data/4D2D/'
+base_path = '/media/buntess/OtherSwifty/Data/Garpen/Ena/'
 #base_path = '/home/turbotage/Documents/4DRecon/'
 
 async def get_smaps(lx=0.5, ls=0.0002, im_size=(320,320,320), load_from_zero = False, pipeMenon = False, wexponent=0.75, translate = False, target_coils = 20):
@@ -157,7 +158,7 @@ async def run_framed(niter, nframes, smapsPath, load_from_zero=True, imsize = (3
 		print(f"Compress Time={end - start} s")
 		
 		start = time.time()
-		dataset = await load_data.gate_ecg(dataset, nframes)
+		dataset = await load_data.gate_time(dataset, nframes)
 		end = time.time()
 		print(f"Gate Time={end - start} s")
 
@@ -201,7 +202,7 @@ async def run_framed(niter, nframes, smapsPath, load_from_zero=True, imsize = (3
 
 	# Load smaps and full image
 	smaps, image = load_data.load_smaps_image(smapsPath)
-	smaps = load_data.load_orchestra_smaps('/media/buntess/OtherSwifty/Data/4D2D/SenseMaps.h5', 32, target_coils, imsize, U_cc)
+	smaps = load_data.load_orchestra_smaps(base_path + 'SenseMaps.h5', 44, target_coils, imsize, U_cc)
 
 	if pipeMenon:
 		for i in range(len(dataset['weights'])):
@@ -231,7 +232,7 @@ async def run_framed(niter, nframes, smapsPath, load_from_zero=True, imsize = (3
 		print(f'Error = {np.array([a.item() for a in normlist[0]]).sum()}')
 		
 
-	proxx = prox.svtprox(base_alpha=lambda_n, blk_shape=np.array([16, 16, 16]), blk_strides=np.array([16, 16, 16]), block_iter=4)
+	proxx = prox.svtprox(base_alpha=lambda_n, blk_shape=np.array([4, 4, 4]), blk_strides=np.array([4, 4, 4]), block_iter=4)
 
 
 
@@ -251,7 +252,7 @@ if __name__ == "__main__":
 	imsize = (320,320,320)
 	usePipeMenon = False
 	do_trans = False
-	target_coils = 20
+	target_coils = 30
 
 	lambda_x = 0.05 #round(10**(random.uniform(0, -4)), 5)
 	lambda_s = round(10**(random.uniform(-2, -6)), 7)
@@ -259,7 +260,7 @@ if __name__ == "__main__":
 	asyncio.run(get_smaps(lambda_x, lambda_s, imsize, True, pipeMenon=usePipeMenon, wexponent=0.75, translate=do_trans, target_coils=target_coils))
 
 	wexponent = [0.75]
-	lambda_n = [1e-2, 1e-4, 1e-3, 1e-5, 1e-1, 1e-6]
+	lambda_n = [1e-2, 1e-4, 1e-6, 1e-3, 1e-5, 1e-1, 1]
 
 	i = 1
 	for wexp in wexponent:
@@ -272,6 +273,6 @@ if __name__ == "__main__":
 
 			sPath = base_path + 'reconed_lowres_1.h5' 
 
-			asyncio.run(run_framed(niter=50, nframes=20, smapsPath=sPath, load_from_zero=False if i != 1 else True, imsize=imsize, pipeMenon=usePipeMenon, 
+			asyncio.run(run_framed(niter=50, nframes=10, smapsPath=sPath, load_from_zero=False if i != 1 else True, imsize=imsize, pipeMenon=usePipeMenon, 
 						  wexponent=wexp, lambda_n=l,  translate=do_trans, target_coils = target_coils))
 			i += 1

@@ -259,15 +259,15 @@ async def my_svt3(output, input, lamda, blk_shape, blk_strides, block_iter, num_
 	#executor = concurrent.futures.ThreadPoolExecutor(max_workers=(block_iter))
 
 	def fetch_and_thresh(iter):
-		#start = time.time()
+		start = time.time()
 		large_block =  block_fetcher_3d_numba(input, iter, shifts, br, Sr, blk_shape, blk_strides, num_encodes, num_frames)
-		#end = time.time()
-		#print(f"Fetcher Time = {end - start}")
+		end = time.time()
+		print(f"Fetcher Time = {end - start}")
 
-		#start = time.time()
+		start = time.time()
 		large_block = thresh_blocks(large_block, lamda, 50)
-		#end = time.time()
-		#print(f"SoftThresh Time = {end - start}")
+		end = time.time()
+		print(f"SoftThresh Time = {end - start}")
 
 		return large_block
 
@@ -279,11 +279,12 @@ async def my_svt3(output, input, lamda, blk_shape, blk_strides, block_iter, num_
 		
 		#large_block = await futures[iter]
 
-		#start = time.time()
+		
 		large_block = fetch_and_thresh(iter)
+		start = time.time()
 		block_pusher_3d_numba(output, large_block, iter, shifts, br, Sr, blk_shape, blk_strides, num_encodes, num_frames, scale)
-		#end = time.time()
-		#print(f"Pusher Time = {end - start}")
+		end = time.time()
+		print(f"Pusher Time = {end - start}")
 
 
 	return output

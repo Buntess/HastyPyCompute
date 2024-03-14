@@ -196,7 +196,7 @@ class PostP_4DFlow:
 
 if __name__ == "__main__":
 
-	base_path = '/media/buntess/OtherSwifty/Data/Garpen/Ena/reconed_framed20_wexp0.75_0.010000_49.h5'
+	base_path = '/media/buntess/OtherSwifty/Data/Garpen/Ena/reconed_framed10_wexp0.75_0.010000_9.h5'
 	venc = 1100
 
 	print(f'Loading Image')
@@ -204,7 +204,7 @@ if __name__ == "__main__":
 		image = np.array(hf['image'])
 		print(image.shape)
 
-	image = image.reshape(20, 5, 320, 320, 320)
+	image = image.reshape(10, 5, 320, 320, 320)
 		
 	post4DFlow = PostP_4DFlow(venc, image)
 	print('Solve velocity')
@@ -212,20 +212,20 @@ if __name__ == "__main__":
 	print('Update CD')
 	post4DFlow.update_cd()
 
-	ort.image_nd(post4DFlow.mag) #vel[:,2,...])
+	pu.image_nd(post4DFlow.mag) #vel[:,2,...])
 
 	print('Correct background phase')
 	post4DFlow.correct_background_phase()
 	print('Update CD')
 	post4DFlow.update_cd()
 
-	ort.image_nd(post4DFlow.cd) #vel[:,2,...])
+	pu.image_nd(post4DFlow.cd) #vel[:,2,...])
 
 	print('Create Background Corrected Image')
 	Emat = get_encode_matrix(constant_from_venc(venc))
 	vel = np.transpose(post4DFlow.vel, (0,2,3,4,1))
 	phase = Emat @ vel[...,None]
-	corrected_image = np.empty((20, 5, 320, 320, 320), dtype=np.complex64)
+	corrected_image = np.empty((10, 5, 320, 320, 320), dtype=np.complex64)
 	corrected_image[:,0,...] = post4DFlow.mag
 	corrected_image[:,1:,...] = np.transpose(post4DFlow.mag[...,None] * np.exp(1j*np.squeeze(phase)), (0,4,1,2,3))
 
