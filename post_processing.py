@@ -196,7 +196,7 @@ class PostP_4DFlow:
 
 if __name__ == "__main__":
 
-	base_path = '/media/buntess/OtherSwifty/Data/Garpen/Ena/reconed_framed10_wexp0.75_0.010000_9.h5'
+	base_path = '/media/buntess/OtherSwifty/Data/4D2D/long_run/reconed_dct_framed20_blk8_wexp0.50_llr0.00001000_t0.01000000_99.h5'
 	venc = 1100
 
 	print(f'Loading Image')
@@ -204,40 +204,57 @@ if __name__ == "__main__":
 		image = np.array(hf['image'])
 		print(image.shape)
 
-	image = image.reshape(10, 5, 320, 320, 320)
+	image = image.reshape(20, 5, 256, 256, 256)
 		
 	post4DFlow = PostP_4DFlow(venc, image)
+
+
+	#np.save('/media/buntess/OtherSwifty/Data/ITGADO/gait9/gait9.dat', np.transpose(post4DFlow.mag, (1, 2, 3, 0)))
+	# with h5py.File('/media/buntess/OtherSwifty/Data/ITGADO/kallaren/mag_time.h5', 'w') as f:
+	# 	f.create_dataset('mag1', data=(post4DFlow.mag[0, ...]))
+	# 	f.create_dataset('mag2', data=(post4DFlow.mag[1, ...]))
+	# 	f.create_dataset('mag3', data=(post4DFlow.mag[2, ...]))
+	# 	f.create_dataset('mag4', data=(post4DFlow.mag[3, ...]))
+	# 	f.create_dataset('mag5', data=(post4DFlow.mag[4, ...]))
+	# 	f.create_dataset('mag6', data=(post4DFlow.mag[5, ...]))
+	# 	f.create_dataset('mag7', data=(post4DFlow.mag[6, ...]))
+	# 	f.create_dataset('mag8', data=(post4DFlow.mag[7, ...]))
+	# 	f.create_dataset('mag9', data=(post4DFlow.mag[8, ...]))
+	# 	f.create_dataset('mag10', data=(post4DFlow.mag[9, ...]))
+
+
 	print('Solve velocity')
 	post4DFlow.solve_velocity()
 	print('Update CD')
 	post4DFlow.update_cd()
 
-	pu.image_nd(post4DFlow.mag) #vel[:,2,...])
+	pu.image_nd(post4DFlow.mag[::2] + post4DFlow.mag[1::2]) #vel[:,2,...])
 
 	print('Correct background phase')
-	post4DFlow.correct_background_phase()
+	post4DFlow.correct_background_phase(fit_order=3)
 	print('Update CD')
 	post4DFlow.update_cd()
 
-	pu.image_nd(post4DFlow.cd) #vel[:,2,...])
+	# pu.image_nd(post4DFlow.cd) #vel[:,2,...])
 
-	print('Create Background Corrected Image')
-	Emat = get_encode_matrix(constant_from_venc(venc))
-	vel = np.transpose(post4DFlow.vel, (0,2,3,4,1))
-	phase = Emat @ vel[...,None]
-	corrected_image = np.empty((10, 5, 320, 320, 320), dtype=np.complex64)
-	corrected_image[:,0,...] = post4DFlow.mag
-	corrected_image[:,1:,...] = np.transpose(post4DFlow.mag[...,None] * np.exp(1j*np.squeeze(phase)), (0,4,1,2,3))
+	# print('Create Background Corrected Image')
+	# Emat = get_encode_matrix(constant_from_venc(venc))
+	# vel = np.transpose(post4DFlow.vel, (0,2,3,4,1))
+	# phase = Emat @ vel[...,None]
+	# corrected_image = np.empty((10, 5, 320, 320, 320), dtype=np.complex64)
+	# corrected_image[:,0,...] = post4DFlow.mag
+	# corrected_image[:,1:,...] = np.transpose(post4DFlow.mag[...,None] * np.exp(1j*np.squeeze(phase)), (0,4,1,2,3))
 
-	addon_smaps = True
+	addon_smaps = False
 	if addon_smaps:
 		print('Loading smaps')
 		with h5py.File(base_path + 'smaps_true.h5', 'r') as f:
 			smaps = f['smaps'][()]
 
+
 	print('Write Corrected Images')
-	with h5py.File(base_path + 'background_corrected.h5', 'w') as f:
+	with h5py.File(base_path[:-3] + 'background_corrected_to.h5', 'w') as f:
 		f.create_dataset('vel', data=post4DFlow.vel)
 		f.create_dataset('cd', data=post4DFlow.cd)
-		f.create_dataset('corrected_img', data=corrected_image)
-		f.create_dataset('smaps', data=smaps)
+		# f.create_dataset('corrected_img', data=corrected_image)
+		# f.create_dataset('smaps', data=smaps)

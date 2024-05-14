@@ -204,8 +204,7 @@ class PostP_4DFlow:
 if __name__ == "__main__":
 
 
-	base_path = '//media/buntess/OtherSwifty/Data/ITGADO/gait3/reconed_framed10_wexp0.75_0.010000_29.h5'
-
+	base_path = '/media/buntess/OtherSwifty/Data/4D2D/long_run/reconed_framed20_blk16_wexp0.50_0.000001_99.h5'
 	venc = 1100
 
 	print(f'Loading Image')
@@ -217,8 +216,9 @@ if __name__ == "__main__":
 		
 	post4DFlow = PostP_4DFlow(venc, image)
 	post4DFlow.solve_velocity()
+	pu.image_nd(np.sqrt(np.sum(post4DFlow.vel.get()**2, 1))) #vel[:,2,...])
 	post4DFlow.update_cd()
-	ort.image_nd(post4DFlow.mag) #vel[:,2,...])
+	#pu.image_nd(post4DFlow.mag) #vel[:,2,...])
 		
 	print(1)
 	# import load_data
@@ -230,14 +230,14 @@ if __name__ == "__main__":
 
 	post4DFlow.correct_background_phase()
 	post4DFlow.update_cd()
-	ort.image_nd(post4DFlow.cd) #vel[:,2,...])
+	pu.image_nd(np.sum(post4DFlow.cd**2, 1)) #vel[:,2,...])
 
-	filename = '/media/buntess/OtherSwifty/Data/Garpen/Ena/garpen_framed_postp.h5'
-	#filename = '/media/buntess/OtherSwifty/Data/Garpen/Ena/garpen_notframed_postp.h5'
-	with h5py.File(filename, 'w') as f:
-		f.create_dataset('vel', data=post4DFlow.vel)
-		f.create_dataset('cd', data=post4DFlow.cd)
+	# filename = '/media/buntess/OtherSwifty/Data/Garpen/Ena/garpen_framed_postp.h5'
+	# #filename = '/media/buntess/OtherSwifty/Data/Garpen/Ena/garpen_notframed_postp.h5'
+	# with h5py.File(filename, 'w') as f:
+	# 	f.create_dataset('vel', data=post4DFlow.vel)
+	# 	f.create_dataset('cd', data=post4DFlow.cd)
 
 
 
-	print(1)
+	print(0)

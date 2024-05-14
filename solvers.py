@@ -3,6 +3,7 @@ import cupy as cp
 import numpy as np
 import h5py
 import gc
+import time
 
 async def fista(xp, x, alpha, gradstep, prox, maxiter, saveImage = False, fileName = None):
 
@@ -17,9 +18,15 @@ async def fista(xp, x, alpha, gradstep, prox, maxiter, saveImage = False, fileNa
         xp.copyto(x_old, x)
         xp.copyto(x, z)
 
+        start = time.time()
         await gradstep(x, alpha)
+        end = time.time()
+        print(f"Grad Time = {end - start}")
 
+        start = time.time()
         await prox(x, alpha, z)
+        end = time.time()
+        print(f"Prox Time = {end - start}")
 
         t_old = t
         t[:] = 0.5 * (1.0 + math.sqrt(1.0 + 4.0*t_old*t_old))
@@ -55,15 +62,7 @@ async def fista(xp, x, alpha, gradstep, prox, maxiter, saveImage = False, fileNa
             #         f.create_dataset('image', data=x)
 
             
-            if i == 9:
-                filename = fileName + '9.h5'
-                with h5py.File(filename, 'w') as f:
-                    f.create_dataset('image', data=x)
-            elif i == 29:
-                filename = fileName + '29.h5'
-                with h5py.File(filename, 'w') as f:
-                    f.create_dataset('image', data=x)
-            elif i == 49:
+            if i == 49:
                 filename = fileName + '49.h5'
                 with h5py.File(filename, 'w') as f:
                     f.create_dataset('image', data=x)
@@ -71,10 +70,18 @@ async def fista(xp, x, alpha, gradstep, prox, maxiter, saveImage = False, fileNa
                 filename = fileName + '99.h5'
                 with h5py.File(filename, 'w') as f:
                     f.create_dataset('image', data=x)
-            elif i == 1900:
-                filename = fileName + '0.h5'
+            elif i == 199:
+                filename = fileName + '199.h5'
                 with h5py.File(filename, 'w') as f:
                     f.create_dataset('image', data=x)
+            # elif i == 99:
+            #     filename = fileName + '99.h5'
+            #     with h5py.File(filename, 'w') as f:
+            #         f.create_dataset('image', data=x)
+            # elif i == 1900:
+            #     filename = fileName + '0.h5'
+            #     with h5py.File(filename, 'w') as f:
+            #         f.create_dataset('image', data=x)
 
             
 

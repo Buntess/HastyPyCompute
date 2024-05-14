@@ -23,9 +23,10 @@ def load_orchestra_smaps(path, nCoils = 19, imSize = (320, 320, 320)):
 
 if __name__ == "__main__":
 
+    smaps = load_data.load_orchestra_smaps('/media/buntess/OtherSwifty/Data/ITGADO/gait9/SenseMaps.h5', 19, 16, (320, 320, 320))
 
     # Load smaps and full image
-    smaps, _ = load_data.load_smaps_image('/media/buntess/OtherSwifty/Data/Garpen/Ena/reconed_lowres_1.h5')
+    # smaps, _ = load_data.load_smaps_image('/media/buntess/OtherSwifty/Data/Garpen/Ena/reconed_lowres_1.h5')
     ort.image_nd(smaps)
 
     print(1)

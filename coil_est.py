@@ -45,6 +45,8 @@ def coil_compress(kdata, axis=0, target_channels=None):
     # SVD
     U, S, _ = np.linalg.svd(kcc, full_matrices=False)
 
+    print(f'Coil compress explained variance: {np.sum(S[:target_channels]**2)/np.sum(S**2)}')
+
     for e in range(len(kdata)):
         kdata[e] = np.squeeze(np.matmul(U, kdata[e]))
         kdata[e] = np.reshape(kdata[e], (ncoils, nspokes, pnperspoke))[:target_channels, ...]

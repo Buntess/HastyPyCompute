@@ -262,12 +262,12 @@ async def my_svt3(output, input, lamda, blk_shape, blk_strides, block_iter, num_
 		start = time.time()
 		large_block =  block_fetcher_3d_numba(input, iter, shifts, br, Sr, blk_shape, blk_strides, num_encodes, num_frames)
 		end = time.time()
-		print(f"Fetcher Time = {end - start}")
+		#print(f"Fetcher Time = {end - start}")
 
 		start = time.time()
 		large_block = thresh_blocks(large_block, lamda, 50)
 		end = time.time()
-		print(f"SoftThresh Time = {end - start}")
+		#print(f"SoftThresh Time = {end - start}")
 
 		return large_block
 
@@ -284,10 +284,109 @@ async def my_svt3(output, input, lamda, blk_shape, blk_strides, block_iter, num_
 		start = time.time()
 		block_pusher_3d_numba(output, large_block, iter, shifts, br, Sr, blk_shape, blk_strides, num_encodes, num_frames, scale)
 		end = time.time()
-		print(f"Pusher Time = {end - start}")
+		#print(f"Pusher Time = {end - start}")
 
 
 	return output
+
+
+
+
+
+@nb.jit(nopython=True, cache=True, parallel=True)  # pragma: no cover
+def svt_numba3(output, input, lamda, blk_shape, blk_strides, block_iter, num_encodes):
+
+    bz = input.shape[1] // blk_strides[0]
+    by = input.shape[2] // blk_strides[1]
+    bx = input.shape[3] // blk_strides[2]
+
+    Sz = int(input.shape[1])
+    Sy = int(input.shape[2])
+    Sx = int(input.shape[3])
+
+    scale = float(1.0 / block_iter)
+
+    num_frames = int(input.shape[0]/num_encodes)
+    # bmat_shape = (num_frames, num_encodes*blk_shape[0] * blk_shape[1] * blk_shape[2])
+    bmat_shape = (num_encodes*blk_shape[0] * blk_shape[1] * blk_shape[2], num_frames)
+
+    shifts = np.zeros((3, block_iter), np.int32)
+    for d in range(3):
+        for biter in range(block_iter):
+            shifts[d,biter] = np.random.randint(blk_shape[d])
+
+    for iter in range(block_iter):
+        #print('block iter = ',iter)
+        shiftz = shifts[0, iter]
+        shifty = shifts[1, iter]
+        shiftx = shifts[2, iter]
+
+        for nz in nb.prange(bz):
+            sz = nz * blk_strides[0] + shiftz
+            ez = sz + blk_shape[0]
+
+            for ny in range(by):
+                sy = ny * blk_strides[1] + shifty
+                ey = sy + blk_shape[1]
+
+                for nx in range(bx):
+
+                    sx = nx * blk_strides[2] + shiftx
+                    ex = sx + blk_shape[2]
+
+                    block = np.zeros(bmat_shape, input.dtype)
+
+                    # Grab a block
+                    for tframe in range(num_frames):
+                        count = 0
+                        for encode in range(num_encodes):
+                            store_pos = int(tframe * num_encodes + encode)
+                            for k in range(sz, ez):
+                                for j in range(sy, ey):
+                                    for i in range(sx, ex):
+                                        # block[tframe, count] = input[store_pos, k % Sz, j % Sy, i % Sx]
+                                        block[count, tframe] = input[store_pos, k % Sz, j % Sy, i % Sx]
+                                        count += 1
+
+                    # Svd
+                    u, s, vh = np.linalg.svd(block, full_matrices=False)
+
+                    for k in range(u.shape[1]):
+
+                        # s[k] = max(s[k] - lamda, 0)
+                        abs_input = abs(s[k])
+                        if abs_input == 0:
+                            sign = 0
+                        else:
+                            sign = s[k] / abs_input
+
+                        s[k] = abs_input - lamda
+                        s[k] = (abs(s[k]) + s[k]) / 2
+                        s[k] = s[k] * sign
+
+                        for i in range(u.shape[0]):
+                            u[i, k] *= s[k]
+
+                    block = np.dot(u, vh)
+
+                    # Put block back
+                    for tframe in range(num_frames):
+                        count = 0
+                        for encode in range(num_encodes):
+                            store_pos = int(tframe * num_encodes + encode)
+                            for k in range(sz, ez):
+                                for j in range(sy, ey):
+                                    for i in range(sx, ex):
+                                        # output[store_pos, k % Sz, j % Sy, i % Sx] += scale*block[tframe, count]
+                                        output[store_pos, k % Sz, j % Sy, i % Sx] += scale*block[count, tframe]
+                                        count += 1
+
+    return output
+
+
+
+
+
 
 
 

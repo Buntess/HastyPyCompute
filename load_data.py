@@ -150,6 +150,7 @@ async def gate_time(dataset, frames, num_encodes=5):
 
 async def gate_ecg(dataset, frames, num_encodes=5):
     ecg_gating = dataset['gating']['ECG_E0']
+    ecg_gating = ecg_gating - np.min(ecg_gating)
     upper_bound = 2 * np.median(ecg_gating)
 
     step = upper_bound / frames
