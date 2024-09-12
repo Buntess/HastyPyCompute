@@ -148,6 +148,43 @@ async def gate_time(dataset, frames, num_encodes=5):
 
     return dataset
 
+async def gate_CO2(dataset, frames, num_encodes=5, nloops = 3):
+    ecg_gating = dataset['gating']['TIME_E0']
+    max_time = np.max(ecg_gating)
+    bl_time = max_time - 60*4*3
+    oneloop = (max_time - bl_time)/nloops
+    step = oneloop / frames
+
+    idx_ground = ecg_gating > bl_time
+    ecg_gating = ecg_gating - bl_time
+    ecg_gating = np.fmod(ecg_gating, oneloop)
+
+    weights = [[] for i in range(num_encodes*frames)]
+    kdatas = [[] for i in range(num_encodes*frames)]
+    coords = [[] for i in range(num_encodes*frames)]
+
+    def do_gating(enc, idxs):
+        weights[enc] = (dataset['weights'][enc % num_encodes][idxs,:])
+        kdatas[enc] = (dataset['kdatas'][enc % num_encodes][:,idxs,:])
+        coords[enc] = (dataset['coords'][enc % num_encodes][:,idxs,:])
+
+    loop = asyncio.get_event_loop()
+    executor = concurrent.futures.ThreadPoolExecutor(max_workers=num_encodes)
+
+    for f in range(frames):
+        idxs = ((ecg_gating > f*step) & (ecg_gating < (f*step + step)) & idx_ground)
+        futures = []
+        for enc in range(num_encodes):
+            futures.append(loop.run_in_executor(executor, do_gating, f*num_encodes + enc, idxs))
+        for fut in futures:
+            await fut
+
+    dataset['weights'] = weights
+    dataset['kdatas'] = kdatas
+    dataset['coords'] = coords
+
+    return dataset
+
 async def gate_ecg(dataset, frames, num_encodes=5):
     ecg_gating = dataset['gating']['ECG_E0']
     ecg_gating = ecg_gating - np.min(ecg_gating)

@@ -196,7 +196,7 @@ class PostP_4DFlow:
 
 if __name__ == "__main__":
 
-	base_path = '/media/buntess/OtherSwifty/Data/4D2D/long_run/reconed_dct_framed20_blk8_wexp0.50_llr0.00001000_t0.01000000_99.h5'
+	base_path = '/media/buntess/OtherSwifty/Data/Test/COBRA_1/long_run/160/reconed_LLR_framed40_blk16_wexp1.00e+00_llr1.00e-06_99.h5'
 	venc = 1100
 
 	print(f'Loading Image')
@@ -204,7 +204,7 @@ if __name__ == "__main__":
 		image = np.array(hf['image'])
 		print(image.shape)
 
-	image = image.reshape(20, 5, 256, 256, 256)
+	image = image.reshape(40, 5, 160, 160, 160)
 		
 	post4DFlow = PostP_4DFlow(venc, image)
 
@@ -235,7 +235,7 @@ if __name__ == "__main__":
 	print('Update CD')
 	post4DFlow.update_cd()
 
-	# pu.image_nd(post4DFlow.cd) #vel[:,2,...])
+	pu.image_nd(post4DFlow.cd) #vel[:,2,...])
 
 	# print('Create Background Corrected Image')
 	# Emat = get_encode_matrix(constant_from_venc(venc))

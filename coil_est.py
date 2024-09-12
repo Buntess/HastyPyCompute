@@ -395,7 +395,7 @@ def walsh_cpu(coil_images, refc, blk_size):
 	ncoil = int(coil_images.shape[1])
 	imsize = coil_images.shape[2:]
 
-	coil_images_out = np.empty((ncoil,imsize[0],imsize[1],imsize[2]), dtype=np.complex64)
+	coil_images_out = np.zeros((ncoil,imsize[0],imsize[1],imsize[2]), dtype=np.complex64)
 
 	for nx in nb.prange(imsize[0]):
 
@@ -436,8 +436,11 @@ def walsh_cpu(coil_images, refc, blk_size):
 				ufactor = np.conj(U[refc,0]) / np.abs(U[refc,0])
 				
 				for c in range(coil_images_out.shape[0]):
-					temp = np.sqrt(S[0]*U[c,0]*ufactor)
-					coil_images_out[c, idx[0], idx[1], idx[2]] = temp #local_block[0,0]
+					temp = np.sqrt(U[c,0]*ufactor)/np.prod(blk_size)
+					for x in range(start[0], end[0]):
+							for y in range(start[1], end[1]):
+								for z in range(start[2], end[2]):
+									coil_images_out[c, x, y, z] += temp #local_block[0,0]
 
 	return coil_images_out
 

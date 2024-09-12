@@ -5,7 +5,6 @@ import time
 import numpy as np
 import random
 import h5py
-from sigpy import dcf as dcf
 
 import util
 import gc
@@ -27,7 +26,7 @@ import prox
 base_path = '/media/buntess/OtherSwifty/Data/PET-MR/Wahlin_Test/'
 #base_path = '/home/turbotage/Documents/4DRecon/'
 
-async def get_smaps(lx=0.5, ls=0.002, imsize=(320,320,320), load_from_zero = False, pipeMenon = False, wexponent=0.75):
+async def get_smaps(lx=0.5, ls=0.002, imsize=(320,320,320), load_from_zero = False, wexponent=0.75):
 
 	if load_from_zero:
 		start = time.time()
@@ -111,15 +110,8 @@ async def get_smaps(lx=0.5, ls=0.002, imsize=(320,320,320), load_from_zero = Fal
 
 
 
-	if pipeMenon:
-		for i in range(len(dataset['weights'])):
-			print(f'Pipe Menon Frame {i}')
-			w = dcf.pipe_menon_dcf(dataset['coords'][i]/np.pi*imsize[0]/2, imsize)
-			cp.get_default_memory_pool().free_all_blocks()
-			dataset['weights'][i] = (w / w.max()) ** wexponent
-		
-	else:
-		dataset['weights'] = [(w / w.max())**wexponent for w in dataset['weights']]
+
+	dataset['weights'] = [(w / w.max())**wexponent for w in dataset['weights']]
 
 	#devicectx = grad.DeviceCtx(cp.cuda.Device(0), 2, imsize, "full")
 
@@ -172,7 +164,7 @@ async def get_smaps(lx=0.5, ls=0.002, imsize=(320,320,320), load_from_zero = Fal
 	del image, smaps, dataset
 
 
-async def run_framed(niter, nframes, smapsPath, load_from_zero=True, imsize = (320,320,320), pipeMenon = False, wexponent=0.75, lambda_n=1e-3, block_s = 8):
+async def run_framed(niter, nframes, smapsPath, load_from_zero=True, imsize = (320,320,320), wexponent=0.75, lambda_n=1e-3, block_s = 8):
 	
 
 	if load_from_zero:
@@ -227,15 +219,8 @@ async def run_framed(niter, nframes, smapsPath, load_from_zero=True, imsize = (3
 	smaps, image = load_data.load_smaps_image(smapsPath)
 	smaps = load_data.load_orchestra_smaps(path = '/media/buntess/OtherSwifty/Data/PET-MR/Wahlin_Test/SenseMaps_Orchestra.h5')
 
-	if pipeMenon:
-		for i in range(len(dataset['weights'])):
-			print(f'Pipe Menon Frame {i}')
-			w = dcf.pipe_menon_dcf(dataset['coords'][i]/np.pi*imsize[0]/2, imsize)
-			cp.get_default_memory_pool().free_all_blocks()
-			dataset['weights'][i] = (w / w.max()) ** wexponent
-		
-	else:
-		dataset['weights'] = [(w / w.max())**wexponent for w in dataset['weights']]
+
+	dataset['weights'] = [(w / w.max())**wexponent for w in dataset['weights']]
 
 
 	#devicectx = grad.DeviceCtx(cp.cuda.Device(0), 2, imsize, "full")
@@ -281,7 +266,6 @@ async def run_framed(niter, nframes, smapsPath, load_from_zero=True, imsize = (3
 
 if __name__ == "__main__":
 	imsize = (256,256,256)
-	usePipeMenon = False
 
 	# for i in range(100):
 	# 	lambda_x = round(10**(random.uniform(0, -4)), 5)
@@ -289,7 +273,7 @@ if __name__ == "__main__":
 
 	lambda_x = 0.02
 	lambda_s = 5*1e-6
-	#asyncio.run(get_smaps(lambda_x, lambda_s, imsize, True, pipeMenon=usePipeMenon, wexponent=0.6))
+	#asyncio.run(get_smaps(lambda_x, lambda_s, imsize, True, wexponent=0.6))
 
 	wexponent = [0.6, 0.3]
 	lambda_n = [5, 1, 10]
@@ -310,5 +294,5 @@ if __name__ == "__main__":
 
 					sPath = base_path + 'reconed_iSENSE_2.h5' #'/media/buntess/OtherSwifty/Data/COBRA191/reconed_lowres.h5'
 
-					asyncio.run(run_framed(niter=100, nframes=10, smapsPath=sPath, load_from_zero=False if i != 1 else True, imsize=imsize, pipeMenon=usePipeMenon, wexponent=wexp, lambda_n=l, block_s = b))
+					asyncio.run(run_framed(niter=100, nframes=10, smapsPath=sPath, load_from_zero=False if i != 1 else True, imsize=imsize, wexponent=wexp, lambda_n=l, block_s = b))
 					i += 1

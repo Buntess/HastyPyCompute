@@ -62,11 +62,11 @@ async def fista(xp, x, alpha, gradstep, prox, maxiter, saveImage = False, fileNa
             #         f.create_dataset('image', data=x)
 
             
-            if i == 49:
+            if i == 499:
                 filename = fileName + '49.h5'
                 with h5py.File(filename, 'w') as f:
                     f.create_dataset('image', data=x)
-            elif i == 99:
+            elif i == 499:
                 filename = fileName + '99.h5'
                 with h5py.File(filename, 'w') as f:
                     f.create_dataset('image', data=x)

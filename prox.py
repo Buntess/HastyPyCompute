@@ -99,7 +99,7 @@ def svtprox(base_alpha, blk_shape, blk_strides, block_iter):
 
     async def svtprox_ret(image, alpha, scratchmem):
 
-        lamda = base_alpha * alpha
+        lamda = base_alpha * alpha * np.sqrt(5*np.prod(blk_shape))
 
         scratchmem.fill(0.0)
         await svt.my_svt3(scratchmem, image,  lamda, blk_shape, blk_strides, block_iter, 5)
@@ -178,7 +178,17 @@ def average_waveletLLR_prox(base_alpha_wave, base_alpha_LLR, blk_shape, blk_stri
     return waveletprox_ret
 
 
+def composition_waveletLLR_prox(base_alpha_wave, base_alpha_LLR, blk_shape, blk_strides, block_iter):
 
+    llrprox = svtprox(base_alpha_LLR, blk_shape, blk_strides, block_iter)
+    waveprox = waveletprox(base_alpha_wave)
+
+    async def waveletprox_ret(image, alpha, scratchmem):
+        await waveprox(image, alpha, scratchmem)
+        await llrprox(image, alpha, scratchmem)
+
+
+    return waveletprox_ret
 
 def average_DCT_LLR_prox(base_alpha_dct, base_alpha_LLR, blk_shape, blk_strides, block_iter):
 
