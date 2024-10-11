@@ -17,7 +17,6 @@ import concurrent
 from functools import partial
 
 import load_data
-import coil_est
 import cupy as cp
 
 import solvers
@@ -26,7 +25,7 @@ import grad
 
 import prox
 
-base_path = '/proj/nobackup/hpc2n2024-107/data/subject1/'
+base_path = '/proj/nobackup/hpc2n2024-107/data/subject2/'
 
 
 
@@ -37,7 +36,7 @@ async def run_framed(niter, nframes, smapsPath, imsize = (320,320,320), wexponen
 
 
 	start = time.time()
-	dataset = load_data.load_processed_dataset(base_path + 'dataset_framed_{imsize[0]}.h5')
+	dataset = load_data.load_processed_dataset(base_path + f'dataset_framed_{imsize[0]}.h5')
 	end = time.time()
 	print(f"Load Dataset Time={end - start} s")
 	U_cc = load_data.load_coil_mat(smapsPath)
@@ -60,7 +59,7 @@ async def run_framed(niter, nframes, smapsPath, imsize = (320,320,320), wexponen
 	async def inormal(imgnew):
 		return await grad.gradient_step_x(smaps, imgnew, [dataset['coords'][0]], None, [dataset['weights'][0]], None, [devicectxdict])
 
-	alpha_i = 0.5 / await solvers.max_eig(np, inormal, util.complex_rand(image[0,...][None,...].shape, xp=np), 30)
+	alpha_i = 0.5 / await solvers.max_eig(np, inormal, util.complex_rand(image[0,...][None,...].shape, xp=np), 50)
 
 
 	print(alpha_i)
@@ -78,8 +77,10 @@ async def run_framed(niter, nframes, smapsPath, imsize = (320,320,320), wexponen
 	else:
 		proxx = prox.svtprox(base_alpha=lambda_n, blk_shape=np.array([blk_sz, blk_sz, blk_sz]), blk_strides=np.array([blk_sz, blk_sz, blk_sz]), block_iter=4)
 		if pythonMaps:
+			#pathlib.Path(base_path + f'reconed_vels/{imsize[0]}/low_res_mps').mkdir(parents=True, exist_ok=True) 
 			filename = base_path + f'reconed_vels/{imsize[0]}/low_res_mps/reconed_LLR_framed{nframes}_blk{blk_sz}_wexp{wexponent:.2e}_llr{lambda_n:.2e}_'
 		else:
+			#pathlib.Path(base_path + f'reconed_vels/{imsize[0]}').mkdir(parents=True, exist_ok=True) 
 			filename = base_path + f'reconed_vels/{imsize[0]}/reconed_LLR_framed{nframes}_blk{blk_sz}_wexp{wexponent:.2e}_llr{lambda_n:.2e}_'
 	end
 
@@ -102,6 +103,7 @@ async def run_framed(niter, nframes, smapsPath, imsize = (320,320,320), wexponen
 
 	filename = filename + 'vels_and_cd.h5'
 
+	print('Save file')
 	with h5py.File(filename, 'w') as f:
 		f.create_dataset('vel', data=post4DFlow.vel)
 		f.create_dataset('cd', data=post4DFlow.cd)
@@ -116,20 +118,21 @@ async def run_framed(niter, nframes, smapsPath, imsize = (320,320,320), wexponen
 if __name__ == "__main__":
 	
 	target_coils = 20
-	num_frames = 40
+	num_frames = 60
 	
 
 	wexponent = [1]
-	resolutions = [160]
+	resolutions = [256]
 
 	pythonMaps = False
 
 
-	blocks = [4]
-	lambda_llr = [1e-2, 1e-3, 1e-5, 1e-4, 1e-6]
+	blocks = [8]
+	lambda_llr = [1e-4, 1e-5, 1e-6]
+	lambda_wt = [1e-4, 1e-5, 0]
 	
-	blocks, lambda_llr = np.meshgrid(blocks, lambda_llr)
-	blocks = blocks.flatten()
+	lambda_wt, lambda_llr = np.meshgrid(lambda_wt, lambda_llr)
+	lambda_wt = lambda_wt.flatten()
 	lambda_llr = lambda_llr.flatten()
 
 
@@ -138,17 +141,15 @@ if __name__ == "__main__":
 	I = np.arange(lambda_llr.shape[0])
 
 
-	print(blocks)
-	print(lambda_llr)
-	print(I)
-
 	for res in resolutions:
 
 		imsize = (res,res,res)
 		i = 0
 
-		for wexp in wexponent:
+		for blk_sz in blocks:
 			
+			wexp = wexponent[0]
+
 			for idx in I:
 
 				l = lambda_llr[idx]
@@ -161,7 +162,7 @@ if __name__ == "__main__":
 				sPath = base_path + f'reconed_lowres_{res}.h5' 
 
 
-				asyncio.run(run_framed(niter=200, nframes=num_frames, smapsPath=sPath, imsize=imsize,  wexponent=wexp, lambda_n=l, 
+				asyncio.run(run_framed(niter=100, nframes=num_frames, smapsPath=sPath, imsize=imsize,  wexponent=wexp, lambda_n=l, 
 							lambda_t=0, target_coils = target_coils, blk_sz=blk_sz, pythonMaps=pythonMaps))
 					
 				i += 1

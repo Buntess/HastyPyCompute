@@ -99,7 +99,7 @@ def svtprox(base_alpha, blk_shape, blk_strides, block_iter):
 
     async def svtprox_ret(image, alpha, scratchmem):
 
-        lamda = base_alpha * alpha * np.sqrt(5*np.prod(blk_shape))
+        lamda = base_alpha * alpha #* np.sqrt(5*np.prod(blk_shape))
 
         scratchmem.fill(0.0)
         await svt.my_svt3(scratchmem, image,  lamda, blk_shape, blk_strides, block_iter, 5)
@@ -137,7 +137,7 @@ def waveletprox(base_alpha):
         iShape = image[0,...].shape
         
         loop = asyncio.get_event_loop()
-        executor = concurrent.futures.ThreadPoolExecutor(max_workers=12)
+        executor = concurrent.futures.ThreadPoolExecutor(max_workers=24)
         
         futures = []
 
